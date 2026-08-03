@@ -52,7 +52,7 @@ async function api(path, options = {}) {
 
 async function loadData() {
   [members, logs] = await Promise.all([
-    api("step_members?select=id,name,emoji&order=name.asc"),
+    api("step_members?select=id,name,emoji,created_at&order=name.asc"),
     api("step_logs?select=member_id,log_date,steps&order=log_date.asc"),
   ]);
 }
@@ -258,12 +258,62 @@ function renderWeek() {
   $("week-summary").textContent = `${fmt(weekTotal)} steps in the last 7 days`;
 }
 
+function renderOwed() {
+  const banner = $("owed-banner");
+  if (!me) { banner.classList.add("hidden"); return; }
+
+  const today = localDateStr();
+  // owed = challenge days before today with no entry, starting from whichever
+  // is later: Sept 1 or the day the member joined
+  const member = members.find((m) => m.id === me.id);
+  const joined = member?.created_at ? member.created_at.slice(0, 10) : CHALLENGE_START;
+  const from = joined > CHALLENGE_START ? joined : CHALLENGE_START;
+  const mine = new Set(
+    logs.filter((l) => l.member_id === me.id).map((l) => l.log_date)
+  );
+
+  const missing = [];
+  const cursor = new Date(from + "T12:00");
+  while (localDateStr(cursor) < today && localDateStr(cursor) <= CHALLENGE_END) {
+    const ds = localDateStr(cursor);
+    if (!mine.has(ds)) missing.push(ds);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  if (!missing.length) {
+    banner.classList.add("hidden");
+    return;
+  }
+
+  banner.classList.remove("hidden");
+  $("owed-title").textContent =
+    `⏰ You owe the board ${missing.length} day${missing.length === 1 ? "" : "s"} — tap one to fill it in:`;
+
+  const wrap = $("owed-days");
+  wrap.innerHTML = "";
+  for (const ds of missing) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "owed-day";
+    btn.textContent = new Date(ds + "T12:00").toLocaleDateString("en-US", {
+      weekday: "short", month: "short", day: "numeric",
+    });
+    btn.addEventListener("click", () => {
+      $("log-date").value = ds;
+      $("log-steps").focus();
+      $("log-form").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    wrap.appendChild(btn);
+  }
+}
+
 function renderAll() {
   renderStatus();
   renderIdentity();
   renderTeam();
   renderLeaderboard();
   renderWeek();
+  renderOwed();
 }
 
 /* ---------- actions ---------- */

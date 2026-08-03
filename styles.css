@@ -190,6 +190,42 @@ h3 { font-size: 0.95rem; margin: 16px 0 4px; }
 
 .log-header h2 { margin: 0; }
 
+/* Owed days banner */
+.owed-banner {
+  border: 1px solid var(--hairline);
+  background: var(--page);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.owed-title {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.owed-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.owed-day {
+  border: 1px solid var(--series-1);
+  color: var(--series-1);
+  background: transparent;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.owed-day:hover, .owed-day:focus-visible {
+  background: var(--series-1-soft);
+}
+
 .feedback {
   margin: 8px 0 0;
   font-size: 0.9rem;
