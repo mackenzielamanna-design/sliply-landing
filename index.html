@@ -1,99 +1,114 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sliply — Receipt tracking that doesn’t feel like accounting</title>
-  <meta name="description" content="Snap a receipt, auto-extract totals, categorize for taxes, and export to CSV. Built for freelancers and side hustles." />
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2a78d6">
+  <title>September Step Challenge</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👟</text></svg>">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="wrap">
-    <div class="brand">
-      <div class="logo">S</div>
-      <div>
-        <div class="name">Sliply</div>
-        <div class="tag">Receipt tracking that doesn’t feel like accounting.</div>
-      </div>
-    </div>
-    <a class="cta" href="#get">Get Sliply</a>
+  <header class="app-header">
+    <h1>👟 September Step Challenge</h1>
+    <p id="challenge-status" class="challenge-status"></p>
   </header>
 
-  <main class="wrap">
-    <section class="hero">
-      <h1>Scan receipts. Stay organized. Export for taxes.</h1>
-      <p class="sub">
-        Sliply is a lightweight receipt tracker for freelancers, side hustlers, landlords, and anyone who just wants a clean CSV at tax time.
-      </p>
-      <div class="actions" id="get">
-        <!-- Replace these links with your actual install / store links -->
-        <a class="button primary" href="REPLACE_WITH_INSTALL_LINK">Download / Install</a>
-        <a class="button" href="REPLACE_WITH_PREVIEW_LINK">Try the web preview</a>
-      </div>
-
-      <div class="cards">
-        <div class="card">
-          <h3>1. Snap</h3>
-          <p>Take a photo or upload a receipt. No spreadsheets. No fuss.</p>
+  <main>
+    <!-- Join / who are you -->
+    <section id="join-section" class="card hidden">
+      <h2>Join the challenge</h2>
+      <p class="muted">Pick your name if you're already on the board, or add yourself.</p>
+      <div id="member-list" class="member-list"></div>
+      <form id="join-form" class="join-form">
+        <div class="emoji-row" id="emoji-row"></div>
+        <div class="field-row">
+          <input type="text" id="join-name" placeholder="Your name" maxlength="40" required>
+          <button type="submit" class="btn primary">Join</button>
         </div>
-        <div class="card">
-          <h3>2. Extract</h3>
-          <p>Auto-detect merchant, date, and total — then store it safely.</p>
-        </div>
-        <div class="card">
-          <h3>3. Export</h3>
-          <p>Export receipts to CSV for your accountant (or future you).</p>
-        </div>
-      </div>
+      </form>
     </section>
 
-    <section class="section">
-      <h2>Who it’s for</h2>
-      <ul class="bullets">
-        <li>Freelancers & contractors</li>
-        <li>Side hustles (Etsy, rideshare, delivery, etc.)</li>
-        <li>Landlords & Airbnb hosts</li>
-        <li>Anyone who wants receipts searchable + exportable</li>
-      </ul>
+    <!-- Logging -->
+    <section id="log-section" class="card hidden">
+      <div class="log-header">
+        <h2 id="greeting"></h2>
+        <button id="switch-user" class="btn ghost small" type="button">Not you?</button>
+      </div>
+      <div id="owed-banner" class="owed-banner hidden">
+        <p class="owed-title" id="owed-title"></p>
+        <div class="owed-days" id="owed-days"></div>
+      </div>
+      <form id="log-form">
+        <div class="field-row">
+          <input type="date" id="log-date" required>
+          <input type="number" id="log-steps" placeholder="Steps" min="0" max="200000" inputmode="numeric" required>
+        </div>
+        <button type="submit" class="btn primary full" id="save-btn">Save steps</button>
+      </form>
+      <p id="log-feedback" class="feedback" role="status"></p>
     </section>
 
-    <section class="section">
-      <h2>Pricing (MVP)</h2>
-      <p class="sub">Keep it simple while we validate demand.</p>
-      <div class="price">
-        <div class="pricebox">
-          <div class="tier">Free</div>
-          <div class="big">$0</div>
-          <div class="small">Scan + store receipts</div>
+    <!-- Team progress -->
+    <section id="team-section" class="card hidden">
+      <h2>Team progress</h2>
+      <div class="stat-tiles">
+        <div class="stat-tile">
+          <span class="stat-value" id="team-total">–</span>
+          <span class="stat-label">team steps</span>
         </div>
-        <div class="pricebox">
-          <div class="tier">Export</div>
-          <div class="big">$1.99</div>
-          <div class="small">Pay per CSV export</div>
+        <div class="stat-tile">
+          <span class="stat-value" id="team-today">–</span>
+          <span class="stat-label">steps today</span>
         </div>
       </div>
-      <p class="fineprint">
-        Note: Pricing is a test. If you hate it, tell us. 🙂
-      </p>
+      <div class="progress-track" role="progressbar" aria-labelledby="goal-caption" aria-valuemin="0" aria-valuemax="100" id="team-progressbar">
+        <div class="progress-fill" id="team-progress-fill"></div>
+      </div>
+      <p class="muted small-text" id="goal-caption"></p>
     </section>
 
-    <section class="section">
-      <h2>Support</h2>
-      <p>Email: <a href="mailto:REPLACE_WITH_SUPPORT_EMAIL">REPLACE_WITH_SUPPORT_EMAIL</a></p>
-      <p class="fineprint">By using Sliply, you agree to the <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
+    <!-- Leaderboard -->
+    <section id="board-section" class="card hidden">
+      <h2>Leaderboard</h2>
+      <p class="muted small-text" id="board-caption"></p>
+      <ol id="leaderboard" class="leaderboard"></ol>
+    </section>
+
+    <!-- Personal week -->
+    <section id="week-section" class="card hidden">
+      <h2>Your last 7 days</h2>
+      <div class="week-chart" id="week-chart" aria-label="Bar chart of your steps for the last seven days"></div>
+      <p class="muted small-text" id="week-summary"></p>
+    </section>
+
+    <!-- Phone sync -->
+    <section class="card">
+      <details>
+        <summary><h2 class="inline-h2">📱 Sync steps from your phone</h2></summary>
+        <div class="sync-body">
+          <p>The quickest way is to log manually here each day — it takes five seconds and works on any phone. If you want your iPhone to send steps automatically:</p>
+          <h3>iPhone (Apple Health → this app)</h3>
+          <ol class="sync-steps">
+            <li>Open the <strong>Shortcuts</strong> app and create a new shortcut.</li>
+            <li>Add a <strong>Find Health Samples</strong> action: type <em>Steps</em>, for <em>Today</em>, and calculate the <em>Sum</em>.</li>
+            <li>Add a <strong>Get Contents of URL</strong> action using the endpoint details in the repo's <strong>README</strong> (method POST, JSON body with your member ID, today's date, and the step sum).</li>
+            <li>In the Shortcuts <strong>Automation</strong> tab, schedule it to run every evening with "Run immediately" turned on.</li>
+          </ol>
+          <p class="muted">Your member ID for the shortcut: <code id="my-member-id">join first and it'll show here</code></p>
+          <h3>Android (Google Fit / Samsung Health)</h3>
+          <p>Android doesn't have a built-in Shortcuts equivalent for health data, so Android folks: glance at your step widget and log it here — it's two taps.</p>
+        </div>
+      </details>
     </section>
   </main>
 
-  <footer class="wrap footer">
-    <div>© <span id="year"></span> Sliply</div>
-    <div class="links">
-      <a href="privacy.html">Privacy</a>
-      <a href="terms.html">Terms</a>
-    </div>
+  <footer class="app-footer">
+    <p class="muted small-text">
+      <a href="about.html">About &amp; rules</a> · steps are on the honor system 😉
+    </p>
   </footer>
 
-  <script>
-    document.getElementById("year").textContent = new Date().getFullYear();
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
