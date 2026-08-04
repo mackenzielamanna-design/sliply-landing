@@ -409,3 +409,8 @@ details summary {
   margin: 8px auto 0;
   text-align: center;
 }
+
+.app-footer a, .sync-body a { color: var(--series-1); }
+
+/* About page lists share the sync-steps spacing */
+ul.sync-steps li, ol.sync-steps li { margin-bottom: 8px; }
