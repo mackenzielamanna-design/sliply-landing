@@ -258,6 +258,126 @@ function renderWeek() {
   $("week-summary").textContent = `${fmt(weekTotal)} steps in the last 7 days`;
 }
 
+// Team analytics: what it would actually take to win from here.
+// Pace is measured over COMPLETED days only — today is still in progress and
+// counting it would drag every average down and make us look behind.
+function renderStrategy() {
+  const section = $("strategy-section");
+  const today = localDateStr();
+  const dayIndex = (ds) =>
+    Math.round((new Date(ds + "T12:00") - new Date(CHALLENGE_START + "T12:00")) / 86400000);
+
+  if (today < CHALLENGE_START || !members.length) {
+    section.classList.add("hidden");
+    return;
+  }
+
+  const completedDays = Math.min(CHALLENGE_DAYS, Math.max(0, dayIndex(today)));
+  if (completedDays < 1) {
+    section.classList.add("hidden");
+    return;
+  }
+  const remainingDays = Math.max(0, CHALLENGE_DAYS - completedDays);
+
+  const done = challengeLogs().filter((l) => l.log_date < today);
+  const stepsSoFar = done.reduce((s, l) => s + l.steps, 0);
+  const avgPerDay = stepsSoFar / completedDays;
+  const projected = stepsSoFar + avgPerDay * remainingDays;
+  const neededPerDay = remainingDays > 0 ? (TEAM_GOAL - stepsSoFar) / remainingDays : 0;
+
+  section.classList.remove("hidden");
+
+  // Headline verdict
+  const verdict = $("pace-verdict");
+  verdict.className = "verdict";
+  if (remainingDays === 0) {
+    verdict.textContent =
+      stepsSoFar >= TEAM_GOAL
+        ? `🏆 Final: ${fmt(stepsSoFar)} steps — goal smashed!`
+        : `🏁 Final: ${fmt(stepsSoFar)} steps, ${fmt(TEAM_GOAL - stepsSoFar)} short.`;
+    verdict.classList.add(stepsSoFar >= TEAM_GOAL ? "ahead" : "behind");
+  } else if (projected >= TEAM_GOAL) {
+    verdict.textContent =
+      `✅ On pace to finish around ${fmt(Math.round(projected))} — that's ${fmt(Math.round(projected - TEAM_GOAL))} past the goal. Hold this pace.`;
+    verdict.classList.add("ahead");
+  } else {
+    verdict.textContent =
+      `⚠️ On pace to finish around ${fmt(Math.round(projected))} — ${fmt(Math.round(TEAM_GOAL - projected))} short. Here's where to find it:`;
+    verdict.classList.add("behind");
+  }
+
+  $("pace-current").textContent = fmt(Math.round(avgPerDay));
+  $("pace-needed").textContent = remainingDays > 0 ? fmt(Math.max(0, Math.round(neededPerDay))) : "—";
+
+  // Actionable levers, biggest first
+  const list = $("insights");
+  list.innerHTML = "";
+  const add = (icon, html) => {
+    const li = document.createElement("li");
+    const ic = document.createElement("span");
+    ic.className = "icon";
+    ic.textContent = icon;
+    const txt = document.createElement("span");
+    txt.innerHTML = html;
+    li.append(ic, txt);
+    list.appendChild(li);
+  };
+
+  // 1. Participation — the biggest and cheapest lever
+  const possible = members.length * completedDays;
+  const filled = done.length;
+  const missed = possible - filled;
+  const rate = possible > 0 ? (filled / possible) * 100 : 0;
+  const avgPerLog = filled > 0 ? stepsSoFar / filled : 0;
+  if (missed > 0) {
+    add("🕳️", `<strong>${missed} unlogged day${missed === 1 ? "" : "s"}</strong> across the team — roughly <strong>${fmt(Math.round(missed * avgPerLog))} steps</strong> missing from our total. Participation is ${rate.toFixed(0)}%; chasing those logs is the cheapest win available.`);
+  } else {
+    add("💯", `<strong>100% participation</strong> — every teammate has logged every day. That alone beats most teams.`);
+  }
+
+  // 2. The small-ask lever
+  if (remainingDays > 0) {
+    const bump = members.length * 1000 * remainingDays;
+    add("➕", `If <strong>everyone</strong> added just <strong>1,000 steps a day</strong> (about a 10-minute walk) for the remaining ${remainingDays} day${remainingDays === 1 ? "" : "s"}, that's <strong>${fmt(bump)} extra steps</strong> — spread across ten people it's far easier than asking one person to go hard.`);
+  }
+
+  // 3. Where the headroom is — aggregated, not named, so nobody gets called out
+  const perMember = new Map();
+  for (const l of done) {
+    if (!perMember.has(l.member_id)) perMember.set(l.member_id, []);
+    perMember.get(l.member_id).push(l.steps);
+  }
+  let headroom = 0;
+  for (const [, vals] of perMember) {
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const best = Math.max(...vals);
+    headroom += Math.max(0, best - avg);
+  }
+  if (headroom > 0 && remainingDays > 0) {
+    add("📈", `Everyone's <strong>average is ${fmt(Math.round(headroom))} steps/day below their own personal best</strong> combined. Nobody needs to do anything they haven't already done once — just repeat good days more often.`);
+  }
+
+  // 4. Weakest weekday — only once there's enough data to mean anything
+  const distinctDays = new Set(done.map((l) => l.log_date)).size;
+  if (distinctDays >= 7) {
+    const byDow = new Map();
+    for (const l of done) {
+      const dow = new Date(l.log_date + "T12:00").getDay();
+      if (!byDow.has(dow)) byDow.set(dow, []);
+      byDow.get(dow).push(l.steps);
+    }
+    let worst = null;
+    for (const [dow, vals] of byDow) {
+      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      if (!worst || avg < worst.avg) worst = { dow, avg };
+    }
+    if (worst) {
+      const name = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"][worst.dow];
+      add("📉", `<strong>${name} are our weakest day</strong> (${fmt(Math.round(worst.avg))} avg per person). That's the easiest place to claw back steps.`);
+    }
+  }
+}
+
 function renderOwed() {
   const banner = $("owed-banner");
   if (!me) { banner.classList.add("hidden"); return; }
@@ -314,6 +434,7 @@ function renderAll() {
   renderLeaderboard();
   renderWeek();
   renderOwed();
+  renderStrategy();
 }
 
 /* ---------- actions ---------- */
