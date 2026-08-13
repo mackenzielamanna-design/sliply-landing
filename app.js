@@ -72,6 +72,63 @@ async function loadData() {
   ]);
 }
 
+function dayIndex(ds) {
+  return Math.round(
+    (new Date(ds + "T12:00") - new Date(CHALLENGE_START + "T12:00")) / 86400000
+  );
+}
+
+// Challenge days that are fully in the past. Today is excluded everywhere we
+// judge people — it isn't over yet, and counting it would invent debt.
+function completedDays() {
+  const today = localDateStr();
+  if (today < CHALLENGE_START) return 0;
+  return Math.min(CHALLENGE_DAYS, Math.max(0, dayIndex(today)));
+}
+
+function settledLogs() {
+  const today = localDateStr();
+  return challengeLogs().filter((l) => l.log_date < today);
+}
+
+// What you owe your own contract: pledge x days elapsed, minus what you walked.
+// Positive = debt, negative = credit. Null if you haven't pledged.
+function memberDebt(m, days, rows) {
+  if (m.daily_goal == null || days < 1) return null;
+  const walked = rows
+    .filter((l) => l.member_id === m.id)
+    .reduce((s, l) => s + l.steps, 0);
+  return m.daily_goal * days - walked;
+}
+
+// Consecutive days logged, counting back from today (or yesterday if today
+// isn't in yet — the day is still young).
+function currentStreak(memberId) {
+  const dates = new Set(
+    logs.filter((l) => l.member_id === memberId).map((l) => l.log_date)
+  );
+  const d = new Date();
+  if (!dates.has(localDateStr(d))) d.setDate(d.getDate() - 1);
+  let streak = 0;
+  while (dates.has(localDateStr(d))) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
+
+function daysSinceLastLog(memberId) {
+  const mine = logs
+    .filter((l) => l.member_id === memberId)
+    .map((l) => l.log_date)
+    .sort();
+  if (!mine.length) return null;
+  const last = mine[mine.length - 1];
+  return Math.round(
+    (new Date(localDateStr() + "T12:00") - new Date(last + "T12:00")) / 86400000
+  );
+}
+
 function challengeLogs() {
   return logs.filter((l) => l.log_date >= CHALLENGE_START && l.log_date <= CHALLENGE_END);
 }
@@ -201,6 +258,14 @@ function renderLeaderboard() {
     const name = document.createElement("span");
     name.className = "board-name";
     name.textContent = `${m.emoji} ${m.name}`;
+    const streak = currentStreak(m.id);
+    if (streak >= 2) {
+      const s = document.createElement("span");
+      s.className = "streak";
+      s.textContent = `🔥${streak}`;
+      s.title = `${streak}-day logging streak`;
+      name.appendChild(s);
+    }
     const total = document.createElement("span");
     total.className = "board-total";
     total.textContent = fmt(totals.get(m.id) || 0);
@@ -285,6 +350,26 @@ function renderPledge() {
     input.value = mine?.daily_goal != null ? mine.daily_goal : "";
   }
 
+  // Your own balance against your contract, front and centre
+  const days = completedDays();
+  const rows = settledLogs();
+  const myDebt = mine ? memberDebt(mine, days, rows) : null;
+  const debtEl = $("my-debt");
+  if (myDebt == null) {
+    debtEl.textContent = "";
+    debtEl.className = "my-debt";
+  } else if (myDebt > 0) {
+    const perDay = Math.ceil(myDebt / Math.max(1, CHALLENGE_DAYS - days));
+    debtEl.textContent = `📉 You owe your contract ${fmt(Math.round(myDebt))} steps. Clear it with about ${fmt(perDay)} extra a day for the rest of the month.`;
+    debtEl.className = "my-debt behind";
+  } else if (myDebt === 0) {
+    debtEl.textContent = `🤝 Square with your contract — exactly where you said you'd be.`;
+    debtEl.className = "my-debt ahead";
+  } else {
+    debtEl.textContent = `📈 You're ${fmt(Math.round(-myDebt))} steps ahead of your contract. Banked.`;
+    debtEl.className = "my-debt ahead";
+  }
+
   const roster = $("pledge-roster");
   roster.innerHTML = "";
   for (const m of members) {
@@ -301,6 +386,17 @@ function renderPledge() {
       val.textContent = "not committed yet";
     }
     li.append(name, val);
+
+    const debt = memberDebt(m, days, rows);
+    if (debt != null) {
+      const d = document.createElement("span");
+      const rounded = Math.round(debt);
+      d.className = "pledge-debt " + (rounded > 0 ? "behind" : "ahead");
+      d.textContent =
+        rounded > 0 ? `−${fmt(rounded)}` : rounded === 0 ? "even" : `+${fmt(-rounded)}`;
+      d.title = rounded > 0 ? "step debt against their own pledge" : "banked ahead of their pledge";
+      li.appendChild(d);
+    }
     roster.appendChild(li);
   }
 
@@ -354,6 +450,55 @@ async function savePledge(value) {
     console.error(err);
   } finally {
     btn.disabled = false;
+  }
+}
+
+// Catch a quiet drop-out while the days lost are still recoverable.
+function renderAlerts() {
+  const section = $("alert-section");
+  const list = $("alert-list");
+  const today = localDateStr();
+
+  if (today < CHALLENGE_START || !members.length) {
+    section.classList.add("hidden");
+    return;
+  }
+
+  const days = completedDays();
+  const rows = settledLogs();
+  const teamAvg =
+    rows.length > 0 ? rows.reduce((s, l) => s + l.steps, 0) / rows.length : 8000;
+
+  const quiet = [];
+  for (const m of members) {
+    const since = daysSinceLastLog(m.id);
+    // never logged at all, or silent for 3+ days
+    if (since == null) quiet.push({ m, since: days, never: true });
+    else if (since >= 3) quiet.push({ m, since, never: false });
+  }
+  quiet.sort((a, b) => b.since - a.since);
+
+  if (!quiet.length) {
+    section.classList.add("hidden");
+    return;
+  }
+
+  section.classList.remove("hidden");
+  list.innerHTML = "";
+  for (const q of quiet) {
+    const li = document.createElement("li");
+    const rate = q.m.daily_goal ?? Math.round(teamAvg);
+    const cost = rate * q.since;
+    const name = document.createElement("span");
+    name.className = "alert-name";
+    name.textContent = `${q.m.emoji} ${q.m.name}`;
+    const detail = document.createElement("span");
+    detail.className = "alert-detail";
+    detail.textContent = q.never
+      ? `never logged · ~${fmt(cost)} missing`
+      : `quiet ${q.since} days · ~${fmt(cost)} missing`;
+    li.append(name, detail);
+    list.appendChild(li);
   }
 }
 
@@ -556,6 +701,7 @@ function renderAll() {
   renderWeek();
   renderOwed();
   renderPledge();
+  renderAlerts();
   renderStrategy();
 }
 
