@@ -49,6 +49,24 @@
       <p id="log-feedback" class="feedback" role="status"></p>
     </section>
 
+    <!-- Daily pledge -->
+    <section id="pledge-section" class="card hidden">
+      <h2>🤝 What are you good for?</h2>
+      <p class="muted">
+        Pick a daily step number you'll <em>actually</em> hit — every day, weekends included.
+        The team target is built from these, so be honest rather than heroic.
+      </p>
+      <form id="pledge-form">
+        <div class="field-row">
+          <input type="number" id="pledge-input" placeholder="e.g. 8000" min="0" max="100000" inputmode="numeric" required>
+          <button type="submit" class="btn primary" id="pledge-btn">Commit</button>
+        </div>
+      </form>
+      <p id="pledge-feedback" class="feedback" role="status"></p>
+      <ul id="pledge-roster" class="pledge-roster"></ul>
+      <p class="muted small-text" id="pledge-summary"></p>
+    </section>
+
     <!-- Team progress -->
     <section id="team-section" class="card hidden">
       <h2>Team progress</h2>

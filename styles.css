@@ -279,6 +279,42 @@ h3 { font-size: 0.95rem; margin: 16px 0 4px; }
   transition: width 0.6s ease;
 }
 
+/* Pledge roster */
+.pledge-roster {
+  list-style: none;
+  margin: 12px 0 8px;
+  padding: 0;
+}
+
+.pledge-roster li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 0.9rem;
+}
+
+.pledge-roster li:last-child { border-bottom: none; }
+
+.pledge-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pledge-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pledge-value.unset {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
 /* Strategy panel */
 .verdict {
   margin: 0 0 12px;

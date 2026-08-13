@@ -6,7 +6,11 @@ const SUPABASE_KEY = "sb_publishable_yXnECOMeoMiGJPrEa-SGpA_UXxfV0q5";
 const CHALLENGE_START = "2026-09-01";
 const CHALLENGE_END = "2026-09-30";
 const CHALLENGE_DAYS = 30;
-const TEAM_GOAL = 3000000; // 10 people x 10k steps x 30 days
+// The stretch number we'd love to hit: 10 people x 10k steps x 30 days.
+// The goal the app actually paces against is built bottom-up from what
+// people pledge (see teamGoal), because a target you picked yourself is
+// far more binding than one handed to you.
+const STRETCH_GOAL = 3000000;
 const EMOJIS = ["🚶", "🏃", "⚡", "🔥", "🦶", "👟", "🐢", "🐇", "🌟", "💪"];
 
 const $ = (id) => document.getElementById(id);
@@ -50,9 +54,20 @@ async function api(path, options = {}) {
 
 /* ---------- data ---------- */
 
+// Sum of everyone's self-set daily pledges, scaled across the challenge.
+// Falls back to the stretch number before anyone has committed.
+function pledgedDaily() {
+  return members.reduce((s, m) => s + (m.daily_goal || 0), 0);
+}
+
+function teamGoal() {
+  const daily = pledgedDaily();
+  return daily > 0 ? daily * CHALLENGE_DAYS : STRETCH_GOAL;
+}
+
 async function loadData() {
   [members, logs] = await Promise.all([
-    api("step_members?select=id,name,emoji,created_at&order=name.asc"),
+    api("step_members?select=id,name,emoji,created_at,daily_goal&order=name.asc"),
     api("step_logs?select=member_id,log_date,steps&order=log_date.asc"),
   ]);
 }
@@ -151,11 +166,12 @@ function renderTeam() {
   $("team-total").textContent = fmt(total);
   $("team-today").textContent = fmt(todayTotal);
 
-  const pct = Math.min(100, (total / TEAM_GOAL) * 100);
+  const goal = teamGoal();
+  const pct = Math.min(100, (total / goal) * 100);
   $("team-progress-fill").style.width = `${pct}%`;
   $("team-progressbar").setAttribute("aria-valuenow", pct.toFixed(0));
   $("goal-caption").textContent =
-    `${pct.toFixed(1)}% of the ${fmt(TEAM_GOAL)}-step team goal`;
+    `${pct.toFixed(1)}% of the ${fmt(goal)}-step team goal`;
 }
 
 function renderLeaderboard() {
@@ -258,6 +274,89 @@ function renderWeek() {
   $("week-summary").textContent = `${fmt(weekTotal)} steps in the last 7 days`;
 }
 
+function renderPledge() {
+  const section = $("pledge-section");
+  if (!me) { section.classList.add("hidden"); return; }
+  section.classList.remove("hidden");
+
+  const mine = members.find((m) => m.id === me.id);
+  const input = $("pledge-input");
+  if (document.activeElement !== input) {
+    input.value = mine?.daily_goal != null ? mine.daily_goal : "";
+  }
+
+  const roster = $("pledge-roster");
+  roster.innerHTML = "";
+  for (const m of members) {
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = "pledge-name";
+    name.textContent = `${m.emoji} ${m.name}`;
+    const val = document.createElement("span");
+    if (m.daily_goal != null) {
+      val.className = "pledge-value";
+      val.textContent = `${fmt(m.daily_goal)}/day`;
+    } else {
+      val.className = "pledge-value unset";
+      val.textContent = "not committed yet";
+    }
+    li.append(name, val);
+    roster.appendChild(li);
+  }
+
+  const daily = pledgedDaily();
+  const committed = members.filter((m) => m.daily_goal != null).length;
+  const missing = members.length - committed;
+
+  if (daily === 0) {
+    $("pledge-summary").textContent =
+      `Nobody has committed yet. Until then the app paces against the ${fmt(STRETCH_GOAL)} stretch goal.`;
+    return;
+  }
+
+  const total = daily * CHALLENGE_DAYS;
+  const gap = STRETCH_GOAL - total;
+  const parts = [
+    `${committed} of ${members.length} committed — ${fmt(daily)} steps/day pledged, or ${fmt(total)} over the month.`,
+  ];
+  if (missing > 0) {
+    parts.push(`${missing} still to go, so this number will climb.`);
+  }
+  parts.push(
+    gap > 0
+      ? `That's ${fmt(gap)} short of the ${fmt(STRETCH_GOAL)} stretch goal — about ${fmt(Math.ceil(gap / CHALLENGE_DAYS))} more steps/day to find.`
+      : `That clears the ${fmt(STRETCH_GOAL)} stretch goal by ${fmt(-gap)}. 🎉`
+  );
+  $("pledge-summary").textContent = parts.join(" ");
+}
+
+async function savePledge(value) {
+  const btn = $("pledge-btn");
+  const fb = $("pledge-feedback");
+  btn.disabled = true;
+  fb.textContent = "";
+  fb.className = "feedback";
+  try {
+    await api(`step_members?id=eq.${encodeURIComponent(me.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ daily_goal: value }),
+    });
+    const mine = members.find((m) => m.id === me.id);
+    if (mine) mine.daily_goal = value;
+    me.daily_goal = value;
+    localStorage.setItem("step_member", JSON.stringify(me));
+    fb.textContent = `Committed to ${fmt(value)} steps a day 🤝`;
+    fb.classList.add("ok");
+    renderAll();
+  } catch (err) {
+    fb.textContent = "Couldn't save your commitment. Check your connection and try again.";
+    fb.classList.add("error");
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // Team analytics: what it would actually take to win from here.
 // Pace is measured over COMPLETED days only — today is still in progress and
 // counting it would drag every average down and make us look behind.
@@ -283,7 +382,8 @@ function renderStrategy() {
   const stepsSoFar = done.reduce((s, l) => s + l.steps, 0);
   const avgPerDay = stepsSoFar / completedDays;
   const projected = stepsSoFar + avgPerDay * remainingDays;
-  const neededPerDay = remainingDays > 0 ? (TEAM_GOAL - stepsSoFar) / remainingDays : 0;
+  const goal = teamGoal();
+  const neededPerDay = remainingDays > 0 ? (goal - stepsSoFar) / remainingDays : 0;
 
   section.classList.remove("hidden");
 
@@ -292,17 +392,17 @@ function renderStrategy() {
   verdict.className = "verdict";
   if (remainingDays === 0) {
     verdict.textContent =
-      stepsSoFar >= TEAM_GOAL
+      stepsSoFar >= goal
         ? `🏆 Final: ${fmt(stepsSoFar)} steps — goal smashed!`
-        : `🏁 Final: ${fmt(stepsSoFar)} steps, ${fmt(TEAM_GOAL - stepsSoFar)} short.`;
-    verdict.classList.add(stepsSoFar >= TEAM_GOAL ? "ahead" : "behind");
-  } else if (projected >= TEAM_GOAL) {
+        : `🏁 Final: ${fmt(stepsSoFar)} steps, ${fmt(goal - stepsSoFar)} short.`;
+    verdict.classList.add(stepsSoFar >= goal ? "ahead" : "behind");
+  } else if (projected >= goal) {
     verdict.textContent =
-      `✅ On pace to finish around ${fmt(Math.round(projected))} — that's ${fmt(Math.round(projected - TEAM_GOAL))} past the goal. Hold this pace.`;
+      `✅ On pace to finish around ${fmt(Math.round(projected))} — that's ${fmt(Math.round(projected - goal))} past the goal. Hold this pace.`;
     verdict.classList.add("ahead");
   } else {
     verdict.textContent =
-      `⚠️ On pace to finish around ${fmt(Math.round(projected))} — ${fmt(Math.round(TEAM_GOAL - projected))} short. Here's where to find it:`;
+      `⚠️ On pace to finish around ${fmt(Math.round(projected))} — ${fmt(Math.round(goal - projected))} short. Here's where to find it:`;
     verdict.classList.add("behind");
   }
 
@@ -335,13 +435,34 @@ function renderStrategy() {
     add("💯", `<strong>100% participation</strong> — every teammate has logged every day. That alone beats most teams.`);
   }
 
-  // 2. The small-ask lever
+  // 2. Are people keeping their own promises? Counted, not named — the point
+  // is to size the gap, not to put anyone on blast.
+  const pledgers = members.filter((m) => m.daily_goal != null);
+  if (pledgers.length) {
+    let behindCount = 0;
+    let shortfall = 0;
+    for (const m of pledgers) {
+      const theirs = done.filter((l) => l.member_id === m.id);
+      const theirAvg = theirs.reduce((s, l) => s + l.steps, 0) / completedDays;
+      if (theirAvg < m.daily_goal) {
+        behindCount++;
+        shortfall += m.daily_goal - theirAvg;
+      }
+    }
+    if (behindCount > 0) {
+      add("🤝", `<strong>${behindCount} of ${pledgers.length}</strong> ${behindCount === 1 ? "person is" : "people are"} running below the number they committed to — <strong>${fmt(Math.round(shortfall))} steps/day</strong> short between them. Everyone picked their own target, so this is the fairest gap to chase.`);
+    } else {
+      add("🤝", `<strong>Everyone is hitting the number they committed to.</strong> Hold this and the goal takes care of itself.`);
+    }
+  }
+
+  // 3. The small-ask lever
   if (remainingDays > 0) {
     const bump = members.length * 1000 * remainingDays;
     add("➕", `If <strong>everyone</strong> added just <strong>1,000 steps a day</strong> (about a 10-minute walk) for the remaining ${remainingDays} day${remainingDays === 1 ? "" : "s"}, that's <strong>${fmt(bump)} extra steps</strong> — spread across ten people it's far easier than asking one person to go hard.`);
   }
 
-  // 3. Where the headroom is — aggregated, not named, so nobody gets called out
+  // 4. Where the headroom is — aggregated, not named, so nobody gets called out
   const perMember = new Map();
   for (const l of done) {
     if (!perMember.has(l.member_id)) perMember.set(l.member_id, []);
@@ -357,7 +478,7 @@ function renderStrategy() {
     add("📈", `Everyone's <strong>average is ${fmt(Math.round(headroom))} steps/day below their own personal best</strong> combined. Nobody needs to do anything they haven't already done once — just repeat good days more often.`);
   }
 
-  // 4. Weakest weekday — only once there's enough data to mean anything
+  // 5. Weakest weekday — only once there's enough data to mean anything
   const distinctDays = new Set(done.map((l) => l.log_date)).size;
   if (distinctDays >= 7) {
     const byDow = new Map();
@@ -434,6 +555,7 @@ function renderAll() {
   renderLeaderboard();
   renderWeek();
   renderOwed();
+  renderPledge();
   renderStrategy();
 }
 
@@ -510,6 +632,13 @@ function initForms() {
     const steps = parseInt($("log-steps").value, 10);
     if (!date || Number.isNaN(steps)) return;
     saveSteps(date, steps);
+  });
+
+  $("pledge-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = parseInt($("pledge-input").value, 10);
+    if (Number.isNaN(v) || v < 0) return;
+    savePledge(v);
   });
 
   $("switch-user").addEventListener("click", () => {
