@@ -385,18 +385,9 @@ function renderPledge() {
       val.className = "pledge-value unset";
       val.textContent = "not committed yet";
     }
+    // Pledges are public — that's the commitment. Debt is deliberately NOT
+    // shown here: everyone sees only their own balance (see #my-debt above).
     li.append(name, val);
-
-    const debt = memberDebt(m, days, rows);
-    if (debt != null) {
-      const d = document.createElement("span");
-      const rounded = Math.round(debt);
-      d.className = "pledge-debt " + (rounded > 0 ? "behind" : "ahead");
-      d.textContent =
-        rounded > 0 ? `−${fmt(rounded)}` : rounded === 0 ? "even" : `+${fmt(-rounded)}`;
-      d.title = rounded > 0 ? "step debt against their own pledge" : "banked ahead of their pledge";
-      li.appendChild(d);
-    }
     roster.appendChild(li);
   }
 

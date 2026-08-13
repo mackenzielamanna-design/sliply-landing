@@ -315,17 +315,6 @@ h3 { font-size: 0.95rem; margin: 16px 0 4px; }
   color: var(--text-muted);
 }
 
-.pledge-debt {
-  font-variant-numeric: tabular-nums;
-  font-size: 0.82rem;
-  width: 5.5em;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-.pledge-debt.behind { color: var(--danger); }
-.pledge-debt.ahead { color: var(--good); }
-
 .my-debt {
   margin: 8px 0 0;
   font-size: 0.9rem;
