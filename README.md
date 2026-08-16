@@ -1,6 +1,6 @@
-# 👟 September Step Challenge
+# 👟 Steply
 
-A tiny web app for our 10-person team step challenge (Sept 1–30). Everyone logs
+Steply is a tiny web app for our 10-person team step challenge (Sept 1–30). Everyone logs
 their daily steps from their phone, and the app shows a live leaderboard, the
 team's progress toward a shared goal, and your own last-7-days chart.
 

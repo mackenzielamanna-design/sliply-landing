@@ -1,4 +1,4 @@
-/* September Step Challenge */
+/* Steply — September Step Challenge */
 
 const SUPABASE_URL = "https://qwodrfmeuoxehunbmfqp.supabase.co";
 const SUPABASE_KEY = "sb_publishable_yXnECOMeoMiGJPrEa-SGpA_UXxfV0q5";

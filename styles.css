@@ -65,6 +65,13 @@ main {
   font-size: 1.5rem;
 }
 
+.app-tagline {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
 .challenge-status {
   margin: 4px 0 0;
   color: var(--text-secondary);
