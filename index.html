@@ -21,25 +21,35 @@
   </header>
 
   <main>
-    <!-- Join / who are you -->
-    <section id="join-section" class="card hidden">
-      <h2>Join the challenge</h2>
-      <p class="muted">Pick your name if you're already on the board, or add yourself.</p>
-      <div id="member-list" class="member-list"></div>
-      <form id="join-form" class="join-form">
-        <div class="emoji-row" id="emoji-row"></div>
+    <!-- Sign in / create account -->
+    <section id="auth-section" class="card hidden">
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab" id="tab-signin" aria-pressed="true">Sign in</button>
+        <button type="button" class="auth-tab" id="tab-signup" aria-pressed="false">Create account</button>
+      </div>
+      <p class="muted small-text" id="auth-intro">Welcome back — sign in with your name and password.</p>
+      <form id="auth-form">
         <div class="field-row">
-          <input type="text" id="join-name" placeholder="Your name" maxlength="40" required>
-          <button type="submit" class="btn primary">Join</button>
+          <input type="text" id="auth-first" placeholder="First name" autocomplete="given-name" maxlength="30" required>
+          <input type="text" id="auth-last" placeholder="Last name" autocomplete="family-name" maxlength="30" required>
         </div>
+        <div class="field-row">
+          <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" minlength="6" required>
+        </div>
+        <div id="signup-only" class="hidden">
+          <p class="muted small-text">Pick your avatar:</p>
+          <div class="emoji-row" id="emoji-row"></div>
+        </div>
+        <button type="submit" class="btn primary full" id="auth-btn">Sign in</button>
       </form>
+      <p id="auth-feedback" class="feedback" role="status"></p>
     </section>
 
     <!-- Logging -->
     <section id="log-section" class="card hidden">
       <div class="log-header">
         <h2 id="greeting"></h2>
-        <button id="switch-user" class="btn ghost small" type="button">Not you?</button>
+        <button id="switch-user" class="btn ghost small" type="button">Sign out</button>
       </div>
       <div id="owed-banner" class="owed-banner hidden">
         <p class="owed-title" id="owed-title"></p>

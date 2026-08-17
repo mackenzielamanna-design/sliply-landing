@@ -97,6 +97,32 @@ h3 { font-size: 0.95rem; margin: 16px 0 4px; }
 .muted { color: var(--text-secondary); margin: 0 0 12px; }
 .small-text { font-size: 0.85rem; }
 
+/* Auth */
+.auth-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 9px 10px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.auth-tab[aria-pressed="true"] {
+  border-color: var(--series-1);
+  background: var(--series-1-soft);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 /* Join */
 .member-list {
   display: flex;

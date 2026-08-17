@@ -1,7 +1,8 @@
 /* Steply — September Step Challenge */
 
-const SUPABASE_URL = "https://qwodrfmeuoxehunbmfqp.supabase.co";
-const SUPABASE_KEY = "sb_publishable_yXnECOMeoMiGJPrEa-SGpA_UXxfV0q5";
+// Steply has its own Supabase project — nothing shared with any other app.
+const SUPABASE_URL = "https://gogdajlwbreorwqonkwy.supabase.co";
+const SUPABASE_KEY = "sb_publishable_J9a5uq022f7lGPF38nqjng_KdTEGXBl";
 
 const CHALLENGE_START = "2026-09-01";
 const CHALLENGE_END = "2026-09-30";
@@ -33,16 +34,103 @@ function fmt(n) {
   return n.toLocaleString("en-US");
 }
 
-async function api(path, options = {}) {
+function displayName(m) {
+  const initial = m.last_name ? ` ${m.last_name[0].toUpperCase()}.` : "";
+  return `${m.first_name}${initial}`;
+}
+
+/* ---------- auth ---------- */
+
+// The team signs in with their name, not an email, so we synthesize a stable
+// address from first + last. Nothing is ever sent to it.
+function emailFor(first, last) {
+  const slug = (s) => String(s).trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return `${slug(first)}.${slug(last)}@steply.local`;
+}
+
+let session = null;
+
+function saveSession(s) {
+  if (!s || !s.access_token) return;
+  session = { ...s, expires_at: Date.now() + (s.expires_in ?? 3600) * 1000 };
+  localStorage.setItem("steply_session", JSON.stringify(session));
+}
+
+function clearSession() {
+  session = null;
+  localStorage.removeItem("steply_session");
+}
+
+async function authFetch(path, body) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1${path}`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(
+      data.error_description || data.msg || data.message || `Auth error ${res.status}`
+    );
+    err.status = res.status;
+    err.code = data.error_code || data.code;
+    throw err;
+  }
+  return data;
+}
+
+async function signIn(first, last, password) {
+  saveSession(
+    await authFetch("/token?grant_type=password", {
+      email: emailFor(first, last),
+      password,
+    })
+  );
+}
+
+async function signUp(first, last, password, emoji) {
+  const data = await authFetch("/signup", {
+    email: emailFor(first, last),
+    password,
+    data: { first_name: String(first).trim(), last_name: String(last).trim(), emoji },
+  });
+  // With confirmation off, signup returns a session directly; otherwise sign in.
+  if (data.access_token) saveSession(data);
+  else await signIn(first, last, password);
+}
+
+async function refreshSession() {
+  if (!session || !session.refresh_token) return false;
+  try {
+    saveSession(
+      await authFetch("/token?grant_type=refresh_token", {
+        refresh_token: session.refresh_token,
+      })
+    );
+    return true;
+  } catch {
+    clearSession();
+    return false;
+  }
+}
+
+async function api(path, options = {}, allowRetry = true) {
+  // Refresh a minute before expiry so a long-open tab keeps working.
+  if (session && session.expires_at && Date.now() > session.expires_at - 60000) {
+    await refreshSession();
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
       apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Authorization: `Bearer ${(session && session.access_token) || SUPABASE_KEY}`,
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
   });
+  if (res.status === 401 && allowRetry && session) {
+    if (await refreshSession()) return api(path, options, false);
+  }
   if (!res.ok) {
     const body = await res.text();
     const err = new Error(`API ${res.status}: ${body}`);
@@ -67,7 +155,7 @@ function teamGoal() {
 
 async function loadData() {
   [members, logs] = await Promise.all([
-    api("step_members?select=id,name,emoji,created_at,daily_goal&order=name.asc"),
+    api("step_members?select=id,first_name,last_name,emoji,created_at,daily_goal&order=first_name.asc"),
     api("step_logs?select=member_id,log_date,steps&order=log_date.asc"),
   ]);
 }
@@ -162,35 +250,67 @@ function renderStatus() {
 }
 
 function renderIdentity() {
-  if (me) {
-    $("join-section").classList.add("hidden");
-    $("log-section").classList.remove("hidden");
-    $("week-section").classList.remove("hidden");
-    $("greeting").textContent = `${me.emoji} Hi, ${me.name}!`;
+  const signedIn = !!(session && me);
+  $("auth-section").classList.toggle("hidden", signedIn);
+  for (const id of ["log-section", "week-section", "pledge-section"]) {
+    $(id).classList.toggle("hidden", !signedIn);
+  }
+  if (signedIn) {
+    $("greeting").textContent = `${me.emoji} Hi, ${me.first_name}!`;
     $("my-member-id").textContent = me.id;
-  } else {
-    $("join-section").classList.remove("hidden");
-    $("log-section").classList.add("hidden");
-    $("week-section").classList.add("hidden");
-    renderMemberChips();
   }
 }
 
-function renderMemberChips() {
-  const wrap = $("member-list");
-  wrap.innerHTML = "";
-  for (const m of members) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "member-chip";
-    btn.textContent = `${m.emoji} ${m.name}`;
-    btn.addEventListener("click", () => {
-      me = m;
-      localStorage.setItem("step_member", JSON.stringify(m));
-      renderIdentity();
-      renderAll();
-    });
-    wrap.appendChild(btn);
+let authMode = "signin";
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const up = mode === "signup";
+  $("tab-signin").setAttribute("aria-pressed", String(!up));
+  $("tab-signup").setAttribute("aria-pressed", String(up));
+  $("signup-only").classList.toggle("hidden", !up);
+  $("auth-btn").textContent = up ? "Create account" : "Sign in";
+  $("auth-intro").textContent = up
+    ? "New here? Pick a password you'll remember — there's no email to reset it with."
+    : "Welcome back — sign in with your name and password.";
+  $("auth-password").setAttribute("autocomplete", up ? "new-password" : "current-password");
+  $("auth-feedback").textContent = "";
+}
+
+async function submitAuth() {
+  const first = $("auth-first").value.trim();
+  const last = $("auth-last").value.trim();
+  const password = $("auth-password").value;
+  const fb = $("auth-feedback");
+  const btn = $("auth-btn");
+  if (!first || !last || !password) return;
+
+  btn.disabled = true;
+  fb.textContent = "";
+  fb.className = "feedback";
+  try {
+    if (authMode === "signup") await signUp(first, last, password, chosenEmoji);
+    else await signIn(first, last, password);
+    await loadData();
+    me = members.find((m) => m.id === session.user.id) || null;
+    if (!me) throw new Error("Signed in, but your profile is missing. Tell Mackenzie.");
+    $("auth-password").value = "";
+    renderAll();
+  } catch (err) {
+    fb.classList.add("error");
+    const msg = String(err.message || "");
+    if (/already registered|already exists/i.test(msg)) {
+      fb.textContent = "That name already has an account — switch to Sign in.";
+    } else if (/invalid login|credentials/i.test(msg)) {
+      fb.textContent = "Name or password doesn't match. Check the spelling of both names.";
+    } else if (/password/i.test(msg) && /short|least|6/i.test(msg)) {
+      fb.textContent = "Password needs to be at least 6 characters.";
+    } else {
+      fb.textContent = msg || "Something went wrong. Try again.";
+    }
+    console.error(err);
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -257,7 +377,7 @@ function renderLeaderboard() {
     rank.textContent = medals[i] || String(i + 1);
     const name = document.createElement("span");
     name.className = "board-name";
-    name.textContent = `${m.emoji} ${m.name}`;
+    name.textContent = `${m.emoji} ${displayName(m)}`;
     const streak = currentStreak(m.id);
     if (streak >= 2) {
       const s = document.createElement("span");
@@ -376,7 +496,7 @@ function renderPledge() {
     const li = document.createElement("li");
     const name = document.createElement("span");
     name.className = "pledge-name";
-    name.textContent = `${m.emoji} ${m.name}`;
+    name.textContent = `${m.emoji} ${displayName(m)}`;
     const val = document.createElement("span");
     if (m.daily_goal != null) {
       val.className = "pledge-value";
@@ -431,7 +551,6 @@ async function savePledge(value) {
     const mine = members.find((m) => m.id === me.id);
     if (mine) mine.daily_goal = value;
     me.daily_goal = value;
-    localStorage.setItem("step_member", JSON.stringify(me));
     fb.textContent = `Committed to ${fmt(value)} steps a day 🤝`;
     fb.classList.add("ok");
     renderAll();
@@ -482,7 +601,7 @@ function renderAlerts() {
     const cost = rate * q.since;
     const name = document.createElement("span");
     name.className = "alert-name";
-    name.textContent = `${q.m.emoji} ${q.m.name}`;
+    name.textContent = `${q.m.emoji} ${displayName(q.m)}`;
     const detail = document.createElement("span");
     detail.className = "alert-detail";
     detail.textContent = q.never
@@ -698,28 +817,6 @@ function renderAll() {
 
 /* ---------- actions ---------- */
 
-async function joinTeam(name) {
-  try {
-    const [created] = await api("step_members", {
-      method: "POST",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify({ name, emoji: chosenEmoji }),
-    });
-    me = created;
-    localStorage.setItem("step_member", JSON.stringify(created));
-    members.push(created);
-    members.sort((a, b) => a.name.localeCompare(b.name));
-    renderAll();
-  } catch (err) {
-    if (err.status === 409) {
-      alert("That name is already on the board — tap it in the list instead!");
-    } else {
-      alert("Couldn't join right now. Check your connection and try again.");
-      console.error(err);
-    }
-  }
-}
-
 async function saveSteps(date, steps) {
   const btn = $("save-btn");
   const fb = $("log-feedback");
@@ -757,10 +854,12 @@ function initForms() {
   dateInput.min = "2026-08-01";
   dateInput.max = localDateStr();
 
-  $("join-form").addEventListener("submit", (e) => {
+  $("tab-signin").addEventListener("click", () => setAuthMode("signin"));
+  $("tab-signup").addEventListener("click", () => setAuthMode("signup"));
+
+  $("auth-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    const name = $("join-name").value.trim();
-    if (name) joinTeam(name);
+    submitAuth();
   });
 
   $("log-form").addEventListener("submit", (e) => {
@@ -779,44 +878,65 @@ function initForms() {
   });
 
   $("switch-user").addEventListener("click", () => {
+    clearSession();
     me = null;
-    localStorage.removeItem("step_member");
-    renderIdentity();
-    renderLeaderboard();
+    members = [];
+    logs = [];
+    setAuthMode("signin");
+    renderAll();
   });
+}
+
+function restoreSession() {
+  const saved = localStorage.getItem("steply_session");
+  if (!saved) return;
+  try {
+    const s = JSON.parse(saved);
+    if (s && s.access_token && s.refresh_token) session = s;
+  } catch {
+    clearSession();
+  }
 }
 
 async function init() {
   renderEmojiPicker();
+  setAuthMode("signin");
   initForms();
   renderStatus();
+  restoreSession();
 
-  const saved = localStorage.getItem("step_member");
-  if (saved) {
-    try { me = JSON.parse(saved); } catch { me = null; }
+  if (!session) {
+    renderIdentity();
+    return;
+  }
+
+  // A stored token may be stale after a long gap; refresh before trusting it.
+  if (session.expires_at && Date.now() > session.expires_at - 60000) {
+    await refreshSession();
   }
 
   try {
-    await loadData();
-    // if saved identity no longer exists in DB, forget it
-    if (me && !members.some((m) => m.id === me.id)) {
-      me = null;
-      localStorage.removeItem("step_member");
+    if (session) {
+      await loadData();
+      me = members.find((m) => m.id === session.user.id) || null;
+      if (!me) clearSession();
     }
   } catch (err) {
-    $("challenge-status").textContent = "Couldn't reach the team board — check your connection and refresh.";
+    // 401 means the session is dead; anything else is a network problem.
+    if (err.status === 401) clearSession();
+    else $("challenge-status").textContent = "Couldn't reach the board — check your connection and refresh.";
     console.error(err);
-    return;
   }
 
   renderAll();
 
-  // keep the board fresh if people leave the tab open
+  // Keep the board fresh if someone leaves the tab open all day.
   setInterval(async () => {
+    if (!session) return;
     try {
       await loadData();
       renderAll();
-    } catch { /* transient — next tick will retry */ }
+    } catch { /* transient — the next tick retries */ }
   }, 60000);
 }
 

@@ -33,7 +33,7 @@
     <section class="card">
       <h2>How to play</h2>
       <ol class="sync-steps">
-        <li><strong>Join once.</strong> Tap your name on the home page, or add yourself and pick an emoji. Your phone remembers you after that — no passwords, no accounts.</li>
+        <li><strong>Create your account.</strong> First name, last name, and a password you'll remember. Your phone stays signed in after that.</li>
         <li><strong>Commit to a daily number.</strong> Pick a step count you'll genuinely hit every day — not your best day, your <em>typical</em> day. The team target is the sum of everyone's commitments, so an honest number is worth more than an ambitious one.</li>
         <li><strong>Log your steps daily.</strong> Check your phone's step count, type the number, hit save. Takes about five seconds.</li>
         <li><strong>Catch up on missed days.</strong> If you forget a day, the app shows you exactly which days you owe. Tap one and it jumps straight to that date so you can fill it in.</li>
@@ -72,14 +72,16 @@
     <section class="card">
       <h2>What data is stored?</h2>
       <p class="muted">
-        Only two things: <strong>the name you type in</strong> and <strong>your daily step numbers</strong>.
-        No email addresses, no passwords, no location, no health records, and nothing pulled from your
-        phone without you sending it. The whole thing is a simple database table that gets thrown away
-        after the challenge if we want.
+        Your <strong>name</strong>, your <strong>daily step numbers</strong>, and a
+        <strong>password</strong> (stored hashed — nobody, including Mackenzie, can read it back).
+        No email addresses, no location, no health records, and nothing pulled from your phone
+        without you sending it. Steply lives in its own database, separate from anything else,
+        and gets thrown away after the challenge if we want.
       </p>
       <p class="muted small-text">
-        Because there are no accounts, anyone with the link can view the board and log steps.
-        That's on purpose — it keeps the whole thing to one tap. Don't put anything private in your display name.
+        Everyone can see the whole team's board — that's the point of a leaderboard. But the
+        database only lets you write your own steps and your own commitment; nobody can log or
+        edit anything on your behalf. Your step debt is yours alone to see.
       </p>
     </section>
 
