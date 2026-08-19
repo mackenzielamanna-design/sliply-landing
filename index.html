@@ -4,36 +4,52 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#2a78d6">
-  <title>September Step Challenge</title>
+  <title>Steply — September Step Challenge</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👟</text></svg>">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Steply">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="app-header">
-    <h1>👟 September Step Challenge</h1>
+    <h1>👟 Steply</h1>
+    <p class="app-tagline">September Step Challenge</p>
     <p id="challenge-status" class="challenge-status"></p>
   </header>
 
   <main>
-    <!-- Join / who are you -->
-    <section id="join-section" class="card hidden">
-      <h2>Join the challenge</h2>
-      <p class="muted">Pick your name if you're already on the board, or add yourself.</p>
-      <div id="member-list" class="member-list"></div>
-      <form id="join-form" class="join-form">
-        <div class="emoji-row" id="emoji-row"></div>
+    <!-- Sign in / create account -->
+    <section id="auth-section" class="card hidden">
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab" id="tab-signin" aria-pressed="true">Sign in</button>
+        <button type="button" class="auth-tab" id="tab-signup" aria-pressed="false">Create account</button>
+      </div>
+      <p class="muted small-text" id="auth-intro">Welcome back — sign in with your name and password.</p>
+      <form id="auth-form">
         <div class="field-row">
-          <input type="text" id="join-name" placeholder="Your name" maxlength="40" required>
-          <button type="submit" class="btn primary">Join</button>
+          <input type="text" id="auth-first" placeholder="First name" autocomplete="given-name" maxlength="30" required>
+          <input type="text" id="auth-last" placeholder="Last name" autocomplete="family-name" maxlength="30" required>
         </div>
+        <div class="field-row">
+          <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" minlength="6" required>
+        </div>
+        <div id="signup-only" class="hidden">
+          <p class="muted small-text">Pick your avatar:</p>
+          <div class="emoji-row" id="emoji-row"></div>
+        </div>
+        <button type="submit" class="btn primary full" id="auth-btn">Sign in</button>
       </form>
+      <p id="auth-feedback" class="feedback" role="status"></p>
     </section>
 
     <!-- Logging -->
     <section id="log-section" class="card hidden">
       <div class="log-header">
         <h2 id="greeting"></h2>
-        <button id="switch-user" class="btn ghost small" type="button">Not you?</button>
+        <button id="switch-user" class="btn ghost small" type="button">Sign out</button>
       </div>
       <div id="owed-banner" class="owed-banner hidden">
         <p class="owed-title" id="owed-title"></p>
@@ -47,6 +63,25 @@
         <button type="submit" class="btn primary full" id="save-btn">Save steps</button>
       </form>
       <p id="log-feedback" class="feedback" role="status"></p>
+    </section>
+
+    <!-- Daily pledge -->
+    <section id="pledge-section" class="card hidden">
+      <h2>🤝 What are you good for?</h2>
+      <p class="muted">
+        Pick a daily step number you'll <em>actually</em> hit — every day, weekends included.
+        The team target is built from these, so be honest rather than heroic.
+      </p>
+      <form id="pledge-form">
+        <div class="field-row">
+          <input type="number" id="pledge-input" placeholder="e.g. 8000" min="0" max="100000" inputmode="numeric" required>
+          <button type="submit" class="btn primary" id="pledge-btn">Commit</button>
+        </div>
+      </form>
+      <p id="pledge-feedback" class="feedback" role="status"></p>
+      <p id="my-debt" class="my-debt"></p>
+      <ul id="pledge-roster" class="pledge-roster"></ul>
+      <p class="muted small-text" id="pledge-summary"></p>
     </section>
 
     <!-- Team progress -->
@@ -66,6 +101,33 @@
         <div class="progress-fill" id="team-progress-fill"></div>
       </div>
       <p class="muted small-text" id="goal-caption"></p>
+    </section>
+
+    <!-- Drop-off early warning -->
+    <section id="alert-section" class="card hidden">
+      <h2>🚨 Going quiet</h2>
+      <p class="muted small-text">
+        Nobody quits loudly — they just stop logging. A nudge now is worth more
+        than anyone else walking harder later.
+      </p>
+      <ul id="alert-list" class="alert-list"></ul>
+    </section>
+
+    <!-- Winning strategy -->
+    <section id="strategy-section" class="card hidden">
+      <h2>📊 How we win</h2>
+      <p class="verdict" id="pace-verdict"></p>
+      <div class="stat-tiles">
+        <div class="stat-tile">
+          <span class="stat-value" id="pace-current">–</span>
+          <span class="stat-label">avg/day so far</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-value" id="pace-needed">–</span>
+          <span class="stat-label">needed/day to win</span>
+        </div>
+      </div>
+      <ul class="insights" id="insights"></ul>
     </section>
 
     <!-- Leaderboard -->
